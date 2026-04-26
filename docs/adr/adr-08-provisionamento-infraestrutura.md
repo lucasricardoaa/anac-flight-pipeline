@@ -84,13 +84,13 @@ Terceiro, **não demonstra maturidade de engenharia**. Um projeto de portfólio 
 
 O Terraform declara a VM onde o Airflow roda com Docker Compose, conforme definido na ADR-06. O recurso inclui: tipo de máquina (`e2-medium`), imagem de sistema operacional, configuração de disco, região e zona de deployment, service account associada à VM, e regras de firewall para acesso SSH e à porta da interface web do Airflow.
 
-O startup script de instalação do Docker na VM pode ser parametrizado como `metadata_startup_script` no recurso `google_compute_instance` ou gerenciado como etapa separada de configuração de SO. `[VERIFICAR]` — definir durante a implementação se o script de bootstrap do Docker é parte do recurso Terraform ou etapa de configuração documentada no README.
+O startup script de instalação do Docker na VM pode ser parametrizado como `metadata_startup_script` no recurso `google_compute_instance` ou gerenciado como etapa separada de configuração de SO. ✓ Resolvido: bootstrap do Docker declarado como `metadata_startup_script` no recurso `google_compute_instance` — instala Docker CE + Docker Compose plugin e habilita o serviço via `systemctl enable docker`. O `terraform apply` produz uma VM com Docker pronto para uso sem passos manuais adicionais.
 
 ### GCS buckets — camadas da arquitetura Medalhão e state do Terraform
 
 O Terraform declara os buckets das camadas Bronze, Silver e Gold da arquitetura Medalhão (ADR-07), com configuração de classe de armazenamento e lifecycle rules para expiração de objetos temporários onde aplicável.
 
-`[VERIFICAR]` — definir durante a implementação quais buckets têm lifecycle rules configuradas e qual política de expiração é adequada para cada camada. A camada Bronze, como fonte de verdade imutável (ADR-07), não deve ter lifecycle rules de expiração sobre os dados ingeridos. Objetos temporários de jobs Spark podem ser candidatos a expiração.
+✓ Resolvido: lifecycle rules configuradas apenas em Silver e Gold, com expiração de 7 dias para objetos com prefixo `_spark_staging/` (arquivos temporários gerados por jobs Spark). Bronze sem lifecycle rules — fonte da verdade imutável (ADR-07). Dados processados de Silver e Gold não expiram.
 
 Se remote state em GCS for adotado (ver seção de backend abaixo), o bucket de state também é declarado pelo Terraform — com a ressalva do problema de bootstrap documentada adiante.
 
@@ -108,7 +108,7 @@ O Terraform declara as service accounts do projeto — uma para o Airflow (com p
 
 O princípio de menor privilégio é aplicado: cada service account recebe apenas as permissões necessárias para seu papel no pipeline. Os recursos Terraform relevantes incluem `google_service_account`, `google_project_iam_binding` e `google_service_account_iam_member`, conforme o escopo de cada binding.
 
-`[VERIFICAR]` — mapear durante a implementação o conjunto exato de roles necessárias para cada service account, com base nas operações que cada componente executa. Roles excessivamente permissivas (`roles/owner`, `roles/editor`) não são adequadas para service accounts de componentes com escopos funcionais delimitados.
+✓ Resolvido: roles mínimas mapeadas por service account — `sa-airflow`: `roles/dataproc.editor` (criar/destruir cluster), `roles/storage.objectAdmin` nos 3 buckets, `roles/secretmanager.secretAccessor`; `sa-dataproc`: `roles/dataproc.worker`, `roles/storage.objectAdmin` nos 3 buckets. Bindings IAM declarados no nível de bucket (não de projeto) onde aplicável.
 
 ### VPC e configurações de rede
 
@@ -190,7 +190,7 @@ Aplica mudanças de infraestrutura automaticamente após o merge. Requer proteç
 
 **Overhead de bootstrap do remote state**: se remote state em GCS for adotado, o bucket de state precisa existir antes do primeiro `terraform apply`. Esse bootstrap — seja via `gcloud` CLI ou via Terraform separado — é um passo adicional que precisa estar documentado no README do projeto. Um novo usuário que clone o repositório e execute `terraform apply` sem criar o bucket de state primeiro vai encontrar um erro de backend que não é imediatamente óbvio.
 
-**O state é um artefato que precisa de atenção**: `terraform.tfstate` em local state contém informações de configuração dos recursos — incluindo potencialmente valores sensíveis como chaves de service account se forem geradas pelo Terraform. O arquivo nunca deve ser commitado no repositório. Essa responsabilidade não existe em scripts shell — não há state para gerenciar. `[VERIFICAR]` — confirmar que `terraform.tfstate` e `terraform.tfstate.backup` estão no `.gitignore` do repositório.
+**O state é um artefato que precisa de atenção**: `terraform.tfstate` em local state contém informações de configuração dos recursos — incluindo potencialmente valores sensíveis como chaves de service account se forem geradas pelo Terraform. O arquivo nunca deve ser commitado no repositório. Essa responsabilidade não existe em scripts shell — não há state para gerenciar. ✓ Resolvido: `*.tfstate`, `*.tfstate.backup` e `*.tfstate.lock.info` estão no `.gitignore` do repositório.
 
 **Credenciais GCP para CI/CD**: para executar `terraform plan` no GitHub Actions, o workflow precisa de credenciais GCP. A gestão dessas credenciais — seja via chave JSON em GitHub Secrets ou via Workload Identity Federation — é um passo de configuração adicional que não existe em projetos sem integração de IaC com CI/CD.
 
