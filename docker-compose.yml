@@ -1,0 +1,139 @@
+# Apache Airflow 2.8 — LocalExecutor + PostgreSQL (ADR-06)
+# Sem Celery, sem Redis, sem worker container separado.
+#
+# Uso:
+#   cp .env.example .env      # preencher as variáveis obrigatórias
+#   docker compose up -d
+#
+# Na VM (GCE e2-medium), autenticação GCP usa o service account da instância
+# via Application Default Credentials — sem necessidade de arquivo de chave.
+
+x-airflow-common: &airflow-common
+  build: .
+  environment: &airflow-common-env
+    # Executor
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+
+    # Banco de metadados
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+      postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
+
+    # Segurança
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+
+    # Comportamento padrão
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+
+    # Logging
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+
+    # Conexão GCP — usa ADC da VM em produção; ver .env.example para dev local
+    AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: "google-cloud-platform://?project=${GCP_PROJECT_ID}"
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+    - airflow-plugins:/opt/airflow/plugins
+
+  user: "${AIRFLOW_UID:-50000}:0"
+
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # ---------------------------------------------------------------------------
+  # Banco de metadados do Airflow
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-airflow}
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-airflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Inicialização: migrate do banco + criação do usuário admin
+  # Executado uma vez a cada `docker compose up`; idempotente.
+  # ---------------------------------------------------------------------------
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "${AIRFLOW_ADMIN_USER:-admin}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD}" \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email "${AIRFLOW_ADMIN_EMAIL:-admin@example.com}" || true
+    restart: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Interface web — acessível em http://<VM_IP>:8080
+  # ---------------------------------------------------------------------------
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # Scheduler — avalia DAGs e dispara task instances (LocalExecutor)
+  # ---------------------------------------------------------------------------
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test:
+        - CMD
+        - airflow
+        - jobs
+        - check
+        - --job-type
+        - SchedulerJob
+        - --hostname
+        - "$${HOSTNAME}"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-db:
+  airflow-logs:
+  airflow-plugins:
