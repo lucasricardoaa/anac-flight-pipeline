@@ -133,7 +133,7 @@ A ausência de CeleryExecutor significa que o Airflow não tem alta disponibilid
 
 ### Positivas
 
-**Custo dentro do constraint**: a VM e2-medium custa aproximadamente $25–30/mês no GCP. `[VERIFICAR]` — confirmar preço atualizado para a região de deployment em [https://cloud.google.com/compute/vm-instance-pricing](https://cloud.google.com/compute/vm-instance-pricing). Com o free trial de $300, a VM é sustentável por 8–10 meses — compatível com o escopo de desenvolvimento de um projeto de portfólio. Isso contrasta diretamente com o Cloud Composer, que consumiria o orçamento total em menos de um mês.
+**Custo dentro do constraint**: ✓ Resolvido: a VM e2-medium em `us-central1` custa ~$0.0336/hora (~$24/mês). A estimativa de planejamento de $25–30/mês estava dentro do intervalo correto. Com o free trial de $300, a VM é sustentável por ~12 meses — compatível com o escopo de desenvolvimento de um projeto de portfólio. Isso contrasta diretamente com o Cloud Composer, que consumiria o orçamento total em menos de um mês.
 
 **Reprodutibilidade como demonstração de maturidade**: um projeto reproduzível com `git clone` + `docker compose up` + `terraform apply` demonstra, sem argumento adicional, que o autor sabe tratar infraestrutura como código. O avaliador técnico não precisa confiar que o ambiente "provavelmente funciona" — ele pode verificar. Essa propriedade é o que separa um projeto de portfólio de um script em produção não documentada.
 
@@ -163,7 +163,7 @@ A ausência de CeleryExecutor significa que o Airflow não tem alta disponibilid
 | Cloud Composer (alternativa rejeitada) | ~$300/mês |
 | Astronomer (alternativa rejeitada) | Pago, sem free tier adequado |
 
-`[VERIFICAR]` — o preço exato da e2-medium varia por região e pode ter sido atualizado. Confirmar em [https://cloud.google.com/compute/vm-instance-pricing](https://cloud.google.com/compute/vm-instance-pricing) antes de finalizar o planejamento de custo.
+✓ Resolvido: e2-medium em `us-central1` — ~$0.0336/hora (~$24/mês). Estimativa de planejamento confirmada.
 
 Com $300 em créditos GCP e custo de VM de ~$25–30/mês, o orçamento para a VM do Airflow ao longo de 10 meses é de ~$250–300. Na prática, o projeto também consome créditos com GCS, Dataproc e tráfego de rede — conforme estimativa detalhada na ADR-03 para o componente Dataproc. O custo do Dataproc ao longo do projeto foi estimado em $4–6 para ~100 execuções de desenvolvimento + 12 mensais, o que deixa a maior parte do orçamento para a VM do Airflow e outros serviços GCP.
 
