@@ -93,3 +93,9 @@ data/
 # Claude Code (ferramentas de desenvolvimento — ADR-09)
 # =============================================================================
 .claude/
+
+# =============================================================================
+# Artefatos de processo (scaffolding, notas internas)
+# =============================================================================
+docs/adr-agent-instructions/
+notes/
