@@ -30,12 +30,16 @@ x-airflow-common: &airflow-common
     # Logging
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
 
+    # Módulos utilitários em scripts/ acessíveis por tasks Airflow
+    PYTHONPATH: /opt/airflow/scripts
+
     # Conexão GCP — usa ADC da VM em produção; ver .env.example para dev local
     AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: "google-cloud-platform://?project=${GCP_PROJECT_ID}"
     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
 
   volumes:
     - ./dags:/opt/airflow/dags
+    - ./scripts:/opt/airflow/scripts
     - airflow-logs:/opt/airflow/logs
     - airflow-plugins:/opt/airflow/plugins
 
