@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write  # necessário para Workload Identity Federation
 
     defaults:
       run:
@@ -31,7 +32,8 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: terraform fmt
         id: fmt
